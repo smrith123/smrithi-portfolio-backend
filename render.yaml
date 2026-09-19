@@ -1,0 +1,38 @@
+# Render Blueprint for the API (Dashboard > Blueprints > New, or create the web service by hand with the same values).
+# Values marked `sync: false` are entered in the Render dashboard; never commit them.
+services:
+  - type: web
+    name: smrithi-portfolio-api
+    runtime: node
+    # Without a plan Render creates a paid instance. Free sleeps after 15 idle minutes (first request ~1 min);
+    # change to starter to keep it awake.
+    plan: free
+    # TypeScript and the @types packages are devDependencies: install them even though NODE_ENV=production.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CORS_ORIGIN
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: MAX_UPLOAD_MB
+        value: "100"
+      - key: OTP_CONSOLE_FALLBACK
+        value: "true"
+      - key: FROM_NAME
+        value: Smrithi Portfolio
