@@ -7,9 +7,9 @@ admin panel (`smrithi-portfolio-admin`, port 3001).
 ## Running it
 
 ```bash
-cp .env.example .env     # then fill in MONGODB_URL, the CLOUDINARY_* keys, JWT_SECRET, ADMIN_EMAIL and ADMIN_PASSWORD
+cp .env.example .env     # then fill in MONGODB_URL, the CLOUDINARY_* keys and JWT_SECRET
 npm install
-npm run seed             # creates the admin account and loads the current site content
+npm run seed             # loads the current site content
 npm run dev              # http://localhost:5000
 ```
 
@@ -22,7 +22,7 @@ re-run: existing sections are left alone unless you pass `-- --force`.
 | --- | --- |
 | `npm run dev` | Development server with reload |
 | `npm run build` / `npm start` | Compile to `dist/` and run it |
-| `npm run seed` | Create the admin user and the initial content |
+| `npm run seed` | Load the initial content |
 | `npm run migrate:media` | One-off: move any leftover `./uploads` files to Cloudinary and rewrite the stored URLs |
 | `npm run migrate:platform-headings` | One-off: give each platform its own small label and heading, copied from the old shared pair. Add `-- --dry-run` to preview. Already applied to the Atlas database; run it once on any other database restored from before 2026-09-18 |
 | `npm test` | Content schema and filename tests |
@@ -37,22 +37,21 @@ re-run: existing sections are left alone unless you pass `-- --force`.
 | `MONGODB_URL` | MongoDB Atlas connection string, **including the database name** in the path — without it Mongoose connects to `test`. Required |
 | `JWT_SECRET` | At least 32 characters; the `.env.example` placeholder is refused. Required. Changing it signs everyone out. Generate with `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"` |
 | `JWT_EXPIRES_IN` | Session length, default `7d` |
-| `FROM_NAME` | Name shown on password-reset messages |
+| `FROM_NAME` | Service name in the startup log |
 | `CORS_ORIGIN` | The public site's and the admin's origins, exact, comma-separated (a trailing slash is tolerated). Required in production. Other origins get no CORS headers, so browsers block them |
 | `FRONTEND_URL`, `ADMIN_URL` | Informational only, not read by the API |
-| `OTP_CONSOLE_FALLBACK` | While `true`, password-reset codes print to the server log instead of being emailed |
 | `PUBLIC_API_URL` | Absolute URL the API is reachable at |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Media host. All three required — the server refuses to boot without them |
 | `MAX_UPLOAD_MB` | Largest upload request (all files together), default 100. Larger requests are refused before they are read. Cloudinary's free plan also caps images and PDFs at 10MB and video at 100MB |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | Used once, by `npm run seed`, which refuses to run without a password of 8+ characters. Not needed on Render |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` | The one admin account, overriding the development defaults in `src/config/admin.ts`. `ADMIN_PASSWORD` is **required in production**: the API refuses to start without it, so the live password is never in a committed file. Changing it signs out every session |
 
 ## Structure
 
 ```
 src/
-  config/      environment validation, database connection
+  config/      environment validation, the admin credentials, database connection
   content/     the section schemas and the site's initial content
-  models/      Section, Media, ContactSubmission, AdminUser
+  models/      Section, Media, ContactSubmission
   services/    content, media and auth logic
   controllers/ request handling
   routes/      public, auth and admin routers
@@ -66,9 +65,9 @@ Every editable block of the site is one document in `sections`, keyed by name
 (`home.hero`, `works.self-content`, ...). Its shape is guaranteed by that key's
 zod schema in `src/content/schemas.ts`, which mirrors the frontend's
 `src/types/content.ts` exactly. Adding an editable field means adding it to that
-schema and to the admin form, and nothing else. Media, contact submissions and
-the admin account have their own collections because they have their own
-lifecycles.
+schema and to the admin form, and nothing else. Media and contact submissions have their own
+collections because they have their own lifecycles; the admin account is not in
+the database at all (see Authentication).
 
 ## API
 
@@ -87,10 +86,7 @@ Authentication:
 | Method | Path | |
 | --- | --- | --- |
 | `POST` | `/api/auth/login` | Returns a JWT |
-| `POST` | `/api/auth/forgot-password` | Sends a six digit code |
-| `POST` | `/api/auth/reset-password` | Sets a new password with that code |
 | `GET` | `/api/auth/me` | The signed-in admin |
-| `POST` | `/api/auth/change-password` | Change a known password. Returns a fresh token; every other session is signed out |
 
 Admin, bearer token required on all of them:
 
@@ -105,6 +101,20 @@ Admin, bearer token required on all of them:
 | `PATCH` `DELETE` | `/api/admin/submissions/:id` | Change status, delete |
 
 Uploaded files are served by Cloudinary, not by this API.
+
+## Authentication
+
+One admin account, defined in `src/config/admin.ts` and overridden by
+`ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME`. There is no sign-up, no second
+account, no password reset and no account in the database — changing who can
+sign in means changing those values and restarting the API.
+
+`POST /api/auth/login` compares both fields against that configuration in
+constant time and returns a JWT. Every token carries a fingerprint of the
+password it was issued under, keyed with `JWT_SECRET`, and `requireAuth` checks
+it on every request, so changing `ADMIN_PASSWORD` immediately invalidates every
+token already issued. Sign-in attempts are not rate limited, at the client's
+request; failed attempts are logged.
 
 ## Media storage
 
@@ -137,8 +147,8 @@ Blueprint Instance). To set the service up by hand instead, use the same values:
 | Instance | Free sleeps after 15 idle minutes and takes about a minute to wake. Starter stays awake |
 
 Environment: `NODE_ENV=production`, `MONGODB_URL`, `JWT_SECRET`, `CORS_ORIGIN`,
-`PUBLIC_API_URL` and the three `CLOUDINARY_*` keys. The Blueprint generates
-`JWT_SECRET` and asks for the rest.
+`PUBLIC_API_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` and the three `CLOUDINARY_*`
+keys. The Blueprint generates `JWT_SECRET` and asks for the rest.
 
 Before the first deploy:
 
@@ -150,6 +160,6 @@ Before the first deploy:
 - The Atlas database is already seeded. Only run `npm run seed` against a new,
   empty database.
 
-Password-reset codes are written to the Render log while
-`OTP_CONSOLE_FALLBACK=true`. Failed sign-ins are logged as
-`[auth] failed sign-in for <email> from <ip>`.
+Changing the admin password means changing `ADMIN_PASSWORD` in the Render
+dashboard and letting it redeploy; every existing session is signed out. Failed
+sign-ins are logged as `[auth] failed sign-in for <email> from <ip>`.

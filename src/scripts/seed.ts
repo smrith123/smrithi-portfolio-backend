@@ -1,14 +1,11 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { connectDb, disconnectDb } from "../config/db.js";
-import { env } from "../config/env.js";
 import { buildDefaults, seedAssets, type AssetUrls, type SeedAsset } from "../content/defaults.js";
 import { sectionKeys } from "../content/schemas.js";
-import { AdminUser } from "../models/AdminUser.js";
 import { Media } from "../models/Media.js";
 import { Section } from "../models/Section.js";
 import { createMedia } from "../services/media.service.js";
-import { hashPassword } from "../services/auth.service.js";
 
 /**
  * Loads the site with the content it currently ships with, so the public API
@@ -56,20 +53,6 @@ async function uploadSeedAssets(): Promise<AssetUrls> {
 
 async function main() {
   await connectDb();
-
-  const email = env.ADMIN_EMAIL.toLowerCase();
-  const admin = await AdminUser.findOne({ email });
-  if (admin) {
-    console.log(`[seed] admin already exists: ${email}`);
-  } else {
-    // Never fall back to the published default password, and never print the password.
-    const pw = env.ADMIN_PASSWORD;
-    if (!pw || pw.length < 8 || pw === "ChangeMe123!") {
-      throw new Error("Set ADMIN_EMAIL and ADMIN_PASSWORD (8+ characters, not the old example value) before seeding the first admin.");
-    }
-    await AdminUser.create({ email, name: env.ADMIN_NAME, passwordHash: await hashPassword(pw) });
-    console.log(`[seed] admin created: ${email} (password from ADMIN_PASSWORD; change it after first sign-in)`);
-  }
 
   console.log("[seed] uploading the client's assets into the media library…");
   const urls = await uploadSeedAssets();

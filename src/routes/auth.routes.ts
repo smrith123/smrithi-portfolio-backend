@@ -1,20 +1,10 @@
 import { Router } from "express";
 import * as controller from "../controllers/auth.controller.js";
 import { requireAuth } from "../middleware/auth.js";
-import { rateLimit } from "../middleware/rateLimit.js";
 
 export const authRouter: Router = Router();
 
-/**
- * Separate buckets on purpose: someone who has locked themselves out of the
- * login form can still request a reset code.
- */
-const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
-const resetLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 10 });
-
-authRouter.post("/login", loginLimit, controller.login);
-authRouter.post("/forgot-password", resetLimit, controller.forgotPassword);
-authRouter.post("/reset-password", resetLimit, controller.resetPassword);
-
+/* The single admin account lives in src/config/admin.ts: no sign-up, and no
+   password reset, so these two routes are the whole of authentication. */
+authRouter.post("/login", controller.login);
 authRouter.get("/me", requireAuth, controller.me);
-authRouter.post("/change-password", requireAuth, controller.changePassword);
