@@ -2,15 +2,18 @@ import type { NextFunction, Request, Response } from "express";
 import { ApiError } from "../lib/ApiError.js";
 
 /**
- * ponytail: fixed-window counter in memory — enough for one API process behind
- * one admin and a contact form. Move to Redis only if the API is ever scaled out.
+ * Spam protection for the public contact form; sign-in is deliberately not
+ * limited (the client asked for it).
+ *
+ * ponytail: fixed-window counter in memory — enough for one API process and one
+ * contact form. Move to Redis only if the API is ever scaled out.
  */
-export function rateLimit({ windowMs, max, key }: { windowMs: number; max: number; key?: (req: Request) => string }) {
+export function rateLimit({ windowMs, max }: { windowMs: number; max: number }) {
   const hits = new Map<string, { count: number; resetAt: number }>();
 
   return (req: Request, _res: Response, next: NextFunction) => {
     const now = Date.now();
-    const id = key?.(req) ?? req.ip ?? "unknown";
+    const id = req.ip ?? "unknown";
     const entry = hits.get(id);
 
     if (!entry || entry.resetAt < now) {

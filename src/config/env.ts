@@ -1,13 +1,6 @@
 import "dotenv/config";
 import { z } from "zod";
 
-/** "false"/"0" must read as false, which z.coerce.boolean() does not do. */
-const bool = (fallback: boolean) =>
-  z
-    .string()
-    .optional()
-    .transform((v) => (v === undefined ? fallback : !/^(false|0|no)$/i.test(v)));
-
 const schema = z.object({
   PORT: z.coerce.number().int().positive().default(5000),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -39,19 +32,14 @@ const schema = z.object({
   FRONTEND_URL: z.string().default("http://localhost:3000"),
   ADMIN_URL: z.string().default("http://localhost:3001"),
 
-  /** Password-reset OTPs print to the server log while no mail transport is configured. */
-  OTP_CONSOLE_FALLBACK: bool(true),
-
   /** Absolute base the API is reachable at; used for logging and links. */
   PUBLIC_API_URL: z.string().optional(),
 
   /** Largest upload request. Cloudinary's free plan takes up to 100MB per video (10MB per image). */
   MAX_UPLOAD_MB: z.coerce.number().positive().default(100),
 
-  /** Used only by `npm run seed` to create the first admin; the API itself never reads them. */
-  ADMIN_EMAIL: z.email().default("admin@smrithi.local"),
-  ADMIN_PASSWORD: z.string().optional(),
-  ADMIN_NAME: z.string().default("Smrithi"),
+  /* ADMIN_EMAIL / ADMIN_PASSWORD / ADMIN_NAME are read in src/config/admin.ts,
+     the single source of truth for the one admin account. */
 });
 
 const parsed = schema
