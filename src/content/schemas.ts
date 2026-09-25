@@ -27,10 +27,21 @@ const headingLines = z
 
 const sectionHeading = z.object({ eyebrow: text, lines: headingLines });
 
+/**
+ * Show / hide switch for the optional home sections (projects, collaborations,
+ * podcast & media). Documents saved before it existed have no value and stay shown.
+ */
+const visible = z.boolean().default(true);
+
 /* ---------------------------------- site ---------------------------------- */
 
+/** The site menu is a fixed set of links: each can be edited and reordered, none added or removed. */
+export const NAV_LINK_COUNT = 6;
+
 const nav = z.object({
-  items: z.array(z.object({ label: text.min(1), href: text.min(1) })).min(1),
+  items: z
+    .array(z.object({ label: text.min(1), href: text.min(1) }))
+    .length(NAV_LINK_COUNT, `The site menu has exactly ${NAV_LINK_COUNT} links`),
 });
 
 /* ---------------------------------- home ---------------------------------- */
@@ -56,7 +67,6 @@ const contentPortfolio = sectionHeading.extend({
         number: text,
         label: text,
         image: url,
-        href: text.optional(),
       }),
     )
     .min(1),
@@ -98,6 +108,7 @@ const journey = sectionHeading.extend({
 });
 
 const projects = sectionHeading.extend({
+  visible,
   items: z
     .array(
       z.object({
@@ -114,6 +125,7 @@ const projects = sectionHeading.extend({
 });
 
 const brands = sectionHeading.extend({
+  visible,
   items: z
     .array(
       z.object({
@@ -128,6 +140,7 @@ const brands = sectionHeading.extend({
 });
 
 const media = sectionHeading.extend({
+  visible,
   items: z
     .array(
       z.object({
@@ -142,7 +155,8 @@ const media = sectionHeading.extend({
 
 const career = z.object({
   portrait: url,
-  cards: z.array(z.object({ id, lines: headingLines, meta: text })).min(1),
+  /** Exactly three: the site places each one in its own spot in the design (`const [c1, c2, c3]`). */
+  cards: z.array(z.object({ id, lines: headingLines, meta: text })).length(3, "There must be exactly three fact cards"),
   panel: z.object({
     lines: headingLines,
     description: text,

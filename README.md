@@ -40,6 +40,7 @@ re-run: existing sections are left alone unless you pass `-- --force`.
 | `FROM_NAME` | Service name in the startup log |
 | `CORS_ORIGIN` | The public site's and the admin's origins, exact, comma-separated (a trailing slash is tolerated). Required in production. Other origins get no CORS headers, so browsers block them |
 | `FRONTEND_URL`, `ADMIN_URL` | Informational only, not read by the API |
+| `FRONTEND_REVALIDATE_URL`, `REVALIDATE_SECRET` | The public site's `/api/revalidate` endpoint and the secret shared with it. After every section save the API calls it, so the next page view shows the change. Unset, the site falls back to its 10-second timer (and a change can take two refreshes) |
 | `PUBLIC_API_URL` | Absolute URL the API is reachable at |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Media host. All three required — the server refuses to boot without them |
 | `MAX_UPLOAD_MB` | Largest upload request (all files together), default 100. Larger requests are refused before they are read. Cloudinary's free plan also caps images and PDFs at 10MB and video at 100MB |
@@ -65,7 +66,10 @@ Every editable block of the site is one document in `sections`, keyed by name
 (`home.hero`, `works.self-content`, ...). Its shape is guaranteed by that key's
 zod schema in `src/content/schemas.ts`, which mirrors the frontend's
 `src/types/content.ts` exactly. Adding an editable field means adding it to that
-schema and to the admin form, and nothing else. Media and contact submissions have their own
+schema and to the admin form, and nothing else. `home.projects`, `home.brands`
+and `home.media` also carry `visible` (default `true`, so content saved before
+the flag existed stays shown); the frontend skips a section whose value is
+`false`, and the admin sets it from each section's Visibility panel. Media and contact submissions have their own
 collections because they have their own lifecycles; the admin account is not in
 the database at all (see Authentication).
 
@@ -147,8 +151,8 @@ Blueprint Instance). To set the service up by hand instead, use the same values:
 | Instance | Free sleeps after 15 idle minutes and takes about a minute to wake. Starter stays awake |
 
 Environment: `NODE_ENV=production`, `MONGODB_URL`, `JWT_SECRET`, `CORS_ORIGIN`,
-`PUBLIC_API_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` and the three `CLOUDINARY_*`
-keys. The Blueprint generates `JWT_SECRET` and asks for the rest.
+`PUBLIC_API_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `FRONTEND_REVALIDATE_URL`,
+`REVALIDATE_SECRET` and the three `CLOUDINARY_*` keys. The Blueprint generates `JWT_SECRET` and asks for the rest.
 
 Before the first deploy:
 

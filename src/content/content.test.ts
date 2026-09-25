@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildDefaults, seedAssets, type AssetUrls, type SeedAsset } from "./defaults.js";
-import { MAX_PLATFORM_IMAGES, homeSectionKeys, sectionKeys, sectionSchemas } from "./schemas.js";
+import { MAX_PLATFORM_IMAGES, NAV_LINK_COUNT, homeSectionKeys, sectionKeys, sectionSchemas } from "./schemas.js";
 import { slugifyFilename } from "../lib/filename.js";
 
 const urls = Object.fromEntries(
@@ -83,6 +83,58 @@ test("a heading made only of blank rows is rejected everywhere", () => {
   // Blank spacer rows are still fine when some line has text.
   section.items[0].lines = [[{ text: "Shot on" }], [{ text: "" }], [{ text: "iPhone", accent: true }]];
   assert.equal(sectionSchemas["home.platforms"].safeParse(section).success, true);
+});
+
+test("projects, collaborations and podcast & media can be hidden, and default to shown", () => {
+  const defaults = buildDefaults(urls);
+  for (const key of ["home.projects", "home.brands", "home.media"] as const) {
+    // Content saved before the switch existed has no value: it must stay on the site.
+    const legacy = sectionSchemas[key].parse(defaults[key]) as { visible: boolean };
+    assert.equal(legacy.visible, true, `${key} should default to shown`);
+
+    const hidden = sectionSchemas[key].parse({ ...(defaults[key] as object), visible: false }) as { visible: boolean };
+    assert.equal(hidden.visible, false, `${key} should keep a hidden state`);
+
+    assert.equal(sectionSchemas[key].safeParse({ ...(defaults[key] as object), visible: "no" }).success, false);
+  }
+  // Every other section ignores the flag entirely.
+  const hero = sectionSchemas["home.hero"].parse({ ...(defaults["home.hero"] as object), visible: false });
+  assert.equal("visible" in (hero as object), false);
+});
+
+test("content portfolio cards no longer carry a link, and old cards with one still save", () => {
+  const section = structuredClone(buildDefaults(urls)["home.contentPortfolio"]) as { pieces: Record<string, unknown>[] };
+  // Two live cards were saved with a link before the field was removed.
+  section.pieces[0].href = "https://www.youtube.com/shorts/example";
+  const parsed = sectionSchemas["home.contentPortfolio"].parse(section) as { pieces: Record<string, unknown>[] };
+  assert.equal(parsed.pieces.length, section.pieces.length);
+  assert.equal("href" in parsed.pieces[0], false, "the link is dropped on the next save");
+  assert.equal(parsed.pieces[0].image, section.pieces[0].image, "everything else on the card is kept");
+});
+
+test("career always has exactly three fact cards", () => {
+  const career = structuredClone(buildDefaults(urls)["home.career"]) as { cards: unknown[] };
+  assert.equal(career.cards.length, 3, "the seed ships three");
+  assert.equal(sectionSchemas["home.career"].safeParse(career).success, true);
+  for (const cards of [career.cards.slice(0, 2), [...career.cards, career.cards[0]]]) {
+    const result = sectionSchemas["home.career"].safeParse({ ...career, cards });
+    assert.equal(result.success, false, `${cards.length} cards must be refused`);
+    assert.equal(result.error?.issues[0]?.message, "There must be exactly three fact cards");
+  }
+});
+
+test("the site menu is a fixed set of links", () => {
+  const nav = structuredClone(buildDefaults(urls)["site.nav"]) as { items: { label: string; href: string }[] };
+  assert.equal(nav.items.length, NAV_LINK_COUNT, "the seed ships the fixed set");
+  // Editing and reordering the existing links is fine.
+  const edited = { items: [...nav.items].reverse().map((l, i) => (i === 0 ? { ...l, label: "Start here" } : l)) };
+  assert.equal(sectionSchemas["site.nav"].safeParse(edited).success, true);
+  // Adding or removing one is refused.
+  for (const items of [[...nav.items, { label: "Extra", href: "/extra" }], nav.items.slice(1)]) {
+    const result = sectionSchemas["site.nav"].safeParse({ items });
+    assert.equal(result.success, false, `${items.length} links must be refused`);
+    assert.equal(result.error?.issues[0]?.message, `The site menu has exactly ${NAV_LINK_COUNT} links`);
+  }
 });
 
 test("uploaded filenames become safe url segments", () => {

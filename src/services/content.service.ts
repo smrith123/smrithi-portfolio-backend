@@ -1,6 +1,7 @@
 import { ApiError } from "../lib/ApiError.js";
 import { Section } from "../models/Section.js";
 import { homeSectionKeys, sectionKeys, sectionSchemas, type SectionKey } from "../content/schemas.js";
+import { revalidateSite } from "../lib/revalidate.js";
 
 /** Strips the `home.` / `works.` prefix: `home.hero` -> `hero`. */
 const leaf = (key: SectionKey) => key.split(".").slice(1).join(".");
@@ -31,6 +32,7 @@ export async function updateSection(key: SectionKey, data: unknown, updatedBy?: 
     { data: parsed.data, updatedBy },
     { returnDocument: "after", upsert: true, setDefaultsOnInsert: true },
   ).lean();
+  await revalidateSite();
   return doc!;
 }
 
