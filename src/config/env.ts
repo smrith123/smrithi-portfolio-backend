@@ -32,6 +32,14 @@ const schema = z.object({
   FRONTEND_URL: z.string().default("http://localhost:3000"),
   ADMIN_URL: z.string().default("http://localhost:3001"),
 
+  /**
+   * The public site's /api/revalidate endpoint and the secret it expects. After
+   * every admin save the API calls it, so the next page view shows the change.
+   * Unset (local development), the site still refreshes on its 10-second timer.
+   */
+  FRONTEND_REVALIDATE_URL: z.url().optional(),
+  REVALIDATE_SECRET: z.string().min(32, "REVALIDATE_SECRET must be at least 32 characters").optional(),
+
   /** Absolute base the API is reachable at; used for logging and links. */
   PUBLIC_API_URL: z.string().optional(),
 

@@ -30,6 +30,10 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      - key: FRONTEND_REVALIDATE_URL
+        sync: false
+      - key: REVALIDATE_SECRET
+        sync: false
       - key: MAX_UPLOAD_MB
         value: "100"
       - key: ADMIN_EMAIL

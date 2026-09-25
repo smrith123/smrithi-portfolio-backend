@@ -1,5 +1,6 @@
 import { ApiError } from "../lib/ApiError.js";
 import { Media, type MediaKind } from "../models/Media.js";
+import { Section } from "../models/Section.js";
 import { deleteFile, saveFile } from "../lib/storage.js";
 
 export function kindFor(mimeType: string): MediaKind {
@@ -41,9 +42,27 @@ export async function listMedia(options: { kind?: MediaKind; folder?: string; pa
   return { items, total, page, pages: Math.ceil(total / limit) || 1 };
 }
 
+/** "home.contentPortfolio" -> "Content portfolio", "works.self-content" -> "Self content". */
+const sectionLabel = (key: string) => {
+  const words = (key.split(".").pop() ?? key).replace(/([a-z])([A-Z])/g, "$1 $2").replace(/-/g, " ").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+/** Sections whose saved content points at this file. Section content stores absolute file URLs. */
+async function sectionsUsing(url: string) {
+  const sections = await Section.find().select("key data").lean();
+  return sections.filter((s) => JSON.stringify(s.data).includes(url)).map((s) => sectionLabel(s.key));
+}
+
 export async function deleteMedia(id: string) {
-  const doc = await Media.findByIdAndDelete(id);
+  const doc = await Media.findById(id);
   if (!doc) throw ApiError.notFound("Media not found");
+  // Deleting removes the file from Cloudinary, so a file the live site still shows would break there.
+  const usedIn = await sectionsUsing(doc.url);
+  if (usedIn.length) {
+    throw new ApiError(409, `This file is still used on the site (${usedIn.join(", ")}). Replace it there first, then delete it.`);
+  }
+  await doc.deleteOne();
   await deleteFile(doc.key, doc.mimeType);
   return doc;
 }
